@@ -1,4 +1,4 @@
-import React, { useState,useMemo, useCallback } from "react";
+import React, { useCallback } from "react";
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
@@ -8,60 +8,77 @@ import Stepper from '@mui/material/Stepper';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
 import StepButton from '@mui/material/StepButton';
-import { gql, useQuery } from "urql";
+import Typography from "@mui/material/Typography";
+import { gql, useQuery, useMutation } from "urql";
+import { useSurvey } from "../hooks/use-survey";
 import { TextQuestion } from "./TextQuestion";
 import { ChoiceQuestion } from "./ChoiceQuestion";
 
 export function Questions() {
-  const [activeQuestion, setActiveQuestion] = useState(0);
-  const [completed, setCompleted] = React.useState({});
   const [{ data, fetching, error }] = useQuery({ query });
+  const [{ fetching: submittingAnswer, error: submitError }, addAnswer] = useMutation(addAnswerMutation);
+  const {
+    handleStep,
+    handleAnswer,
+    handleNext,
+    handleBack,
+    currentQuestion,
+    sortedQuestions,
+    activeQuestion,
+    completed,
+    isCompleted,
+  } = useSurvey({
+    questions: data ? data.questions : [],
+    onQuestionComplete: addAnswer,
+  });
 
-  const handleStep = useCallback((step) => () => {
-    setActiveQuestion(step);
-  }, []);
+  const renderSurvey = useCallback(() => {
+    return (
+      <>
+        {submittingAnswer ? <CircularProgress /> : currentQuestion ? (
+          <Box sx={{ width: '100%', p: 1, mt: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            {currentQuestion.type === 'text' ? <TextQuestion value={completed[activeQuestion] || ''} label={currentQuestion.body} onChange={handleAnswer} /> : <ChoiceQuestion label={currentQuestion.body} value={completed[activeQuestion] | null} onChange={handleAnswer} options={currentQuestion.options} />}
+          </Box>
+        ) : null}
+        <Box sx={{ display: 'flex', flexDirection: 'row', pt: 2, maxWidth: 320, justifyContent: 'center', m: '0 auto' }}>
+          <Button
+            color="inherit"
+            disabled={activeQuestion === 0}
+            onClick={handleBack}
+            sx={{ mr: 1 }}
+          >
+            Back
+          </Button>
+          <Box sx={{ flex: '1 1 auto' }} />
+          <Button onClick={handleNext} sx={{ mr: 1 }}>
+            {activeQuestion === sortedQuestions.length - 1 ? 'Complete' : 'Next'}
+          </Button>
+        </Box>
+      </>
+    )
+  }, [activeQuestion, completed, currentQuestion, handleAnswer, handleBack, handleNext, sortedQuestions.length, submittingAnswer]);
 
-  const handleAnswer = useCallback((value) => {
-    setCompleted({
-      ...completed,
-      [activeQuestion]: value,
-    });
-  }, [activeQuestion, completed]);
+  const renderResult = useCallback(() => {
+    const completedQuestions = Object.keys(completed).length;
+    const totalQuestions = sortedQuestions.length;
 
-  const handleNext = useCallback(() => {
-    setActiveQuestion(activeQuestion + 1)
-  }, [activeQuestion]);
-
-  const handleBack = useCallback(() => {
-    setActiveQuestion(activeQuestion - 1);
-  }, [activeQuestion]);
-
-  const sortedQuestions = useMemo(() => {
-    if (!data || !data.questions) {
-      return [];
-    }
-
-    return data.questions
-      .map(q => ({
-        ...q,
-        type: q.options ? 'choice' : 'text'
-      }))
-      .sort(q => q.weight);
-  }, [data]);
-
-  const currentQuestion = useMemo(() => {
-    return sortedQuestions[activeQuestion] || null;
-  }, [activeQuestion, sortedQuestions]);
+    return (
+      <>
+        <Typography variant="h2">Result:</Typography>
+        <Typography>You answered {completedQuestions} out of {totalQuestions} questions.</Typography>
+      </>
+    )
+  }, [completed, sortedQuestions.length]);
 
   if (fetching) {
-    return <CircularProgress />
+    return <CircularProgress />;
   };
 
-  if (error) {
+  if (error || submitError) {
     return (
       <Alert severity="error">
         <AlertTitle>Error</AlertTitle>
-        {error}
+        {(error || submitError).toString()}
       </Alert>
     );
   }
@@ -77,34 +94,20 @@ export function Questions() {
 
   return (
     <Box sx={{ width: '100%', p: 1, maxWidth: 640 }}>
-      <Stepper nonLinear alternativeLabel activeStep={activeQuestion}>
-        {data.questions.map((q, index) => (
-          <Step key={q.id} completed={completed[index]}>
-            <StepButton color="inherit" onClick={handleStep(index)}>
-              <StepLabel>{q.body}</StepLabel>
-            </StepButton>
-          </Step>
-        ))}
-      </Stepper>
-      {currentQuestion ? (
-        <Box sx={{ width: '100%', p: 1, mt: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          {currentQuestion.type === 'text' ? <TextQuestion value={completed[activeQuestion] || ''} label={currentQuestion.body} onChange={handleAnswer} /> : <ChoiceQuestion label={currentQuestion.body} value={completed[activeQuestion]} onChange={handleAnswer} options={currentQuestion.options} />}
-        </Box>
-      ) : null}
-      <Box sx={{ display: 'flex', flexDirection: 'row', pt: 2, maxWidth: 320, justifyContent: 'center', m: '0 auto' }}>
-        <Button
-          color="inherit"
-          disabled={activeQuestion === 0}
-          onClick={handleBack}
-          sx={{ mr: 1 }}
-        >
-          Back
-        </Button>
-        <Box sx={{ flex: '1 1 auto' }} />
-        <Button onClick={handleNext} sx={{ mr: 1 }}>
-          {activeQuestion === sortedQuestions.length - 1 ? 'Complete' : 'Next'}
-        </Button>
-      </Box>
+      {isCompleted ? renderResult() : (
+        <>
+          <Stepper nonLinear alternativeLabel activeStep={activeQuestion}>
+            {data.questions.map((q, index) => (
+              <Step key={q.id} completed={!!completed[index]}>
+                <StepButton color="inherit" onClick={handleStep(index)}>
+                  <StepLabel>{q.body}</StepLabel>
+                </StepButton>
+              </Step>
+            ))}
+          </Stepper>
+          {renderSurvey()}
+        </>
+      )}
     </Box>
   );
 }
@@ -130,4 +133,14 @@ const query = gql`
       }
     }
   }
+`;
+
+const addAnswerMutation = gql`
+  mutation ($value: String!, $questionID: ID!) {
+    addAnswer(input: { value: $value }, questionID: $questionID) {
+      id,
+      value,
+      questionID
+    }
+  } 
 `;
