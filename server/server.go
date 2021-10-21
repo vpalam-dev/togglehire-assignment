@@ -3,6 +3,7 @@ package main
 import (
 	"homework-backend/graph"
 	"homework-backend/graph/generated"
+	"homework-backend/graph/model"
 	"log"
 	"net/http"
 	"os"
@@ -20,7 +21,24 @@ func main() {
 		port = defaultPort
 	}
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
+		AllQuestions: []model.Question{
+			model.ChoiceQuestion{
+				ID:     "100",
+				Body:   "Where does the sun set?",
+				Weight: 0.5,
+				Options: []*model.Option{
+					{ID: "200", Body: "East", Weight: 0},
+					{ID: "201", Body: "West", Weight: 1},
+				},
+			},
+			model.TextQuestion{
+				ID:     "101",
+				Body:   "What is your favourite food?",
+				Weight: 1,
+			},
+		},
+	}}))
 
 	mux := http.NewServeMux()
 	mux.Handle("/", playground.Handler("GraphQL playground", "/query"))

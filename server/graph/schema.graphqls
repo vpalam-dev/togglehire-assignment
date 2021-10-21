@@ -26,3 +26,21 @@ type Option {
   weight: Float!
 }
 
+interface Answer {
+  questionID: ID!
+}
+
+type QuestionAnswer implements Answer {
+  id: ID!
+  value: String!
+  questionID: ID!
+}
+
+input AddQuestionAnswer {
+  value: String!
+}
+
+type Mutation {
+  addAnswer(input: AddQuestionAnswer!, questionID: ID!): QuestionAnswer!
+}
+

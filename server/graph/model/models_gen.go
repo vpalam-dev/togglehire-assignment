@@ -2,8 +2,16 @@
 
 package model
 
+type Answer interface {
+	IsAnswer()
+}
+
 type Question interface {
 	IsQuestion()
+}
+
+type AddQuestionAnswer struct {
+	Value string `json:"value"`
 }
 
 type ChoiceQuestion struct {
@@ -20,6 +28,14 @@ type Option struct {
 	Body   string  `json:"body"`
 	Weight float64 `json:"weight"`
 }
+
+type QuestionAnswer struct {
+	ID         string `json:"id"`
+	Value      string `json:"value"`
+	QuestionID string `json:"questionID"`
+}
+
+func (QuestionAnswer) IsAnswer() {}
 
 type TextQuestion struct {
 	ID     string  `json:"id"`
